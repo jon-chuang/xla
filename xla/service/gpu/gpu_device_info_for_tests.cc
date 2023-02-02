@@ -22,7 +22,8 @@ namespace gpu {
   GpuDeviceInfo d;
   d.threads_per_block_limit = 1024;
   d.threads_per_warp = 32;
-  d.shared_memory_per_block = 49152;
+  d.shared_memory_per_block = 48 * 1024;
+  d.shared_memory_per_block_optin = 99 * 1024;
   d.shared_memory_per_core = 100 * 1024;
   d.threads_per_core_limit = 1536;
   d.core_count = 84;

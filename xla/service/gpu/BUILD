@@ -235,14 +235,13 @@ cc_library(
 xla_cc_test(
     name = "gpu_device_info_test",
     srcs = ["gpu_device_info_test.cc"],
-    tags = tf_cuda_tests_tags(),
+    tags = tf_cuda_tests_tags() + ["no_oss"],
     deps = [
         ":gpu_device_info_for_tests",
+        "//xla:test_helpers",
         "//xla/stream_executor",
         "//xla/stream_executor:device_description",
-        "//xla/stream_executor/cuda:cuda_driver",
-        "@com_google_googletest//:gtest_main",
-        "@local_config_cuda//cuda:cuda_headers",
+        "//xla/stream_executor/cuda:cuda_gpu_executor",
         "@tsl//tsl/platform:test_main",
     ],
 )
@@ -301,6 +300,7 @@ cc_library(
         ":target_util",
         ":thunk",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/memory",
@@ -375,7 +375,102 @@ cc_library(
         ":cholesky_thunk",
     ]) + if_cuda_is_configured([
         ":cublas_lt_matmul_thunk",
+        ":ir_emitter_triton",
     ]),
+)
+
+cc_library(
+    name = "ir_emitter_triton",
+    srcs = if_cuda_is_configured(["ir_emitter_triton.cc"]),
+    hdrs = if_cuda_is_configured(["ir_emitter_triton.h"]),
+    deps = [
+        ":gpu_device_info",
+        ":ir_emission_utils",
+        ":launch_dimensions",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@llvm-project//llvm:Linker",
+        "@llvm-project//llvm:ir_headers",
+        "//xla:shape_util",
+        "//xla:xla_data_proto_cc",
+        "//xla/hlo/ir:hlo",
+        "@tsl//tsl/platform:logging",
+        "@tsl//tsl/protobuf:autotuning_proto_cc",
+    ] + if_cuda_is_configured([
+        "@triton//:codegen",
+        "@triton//:ir",
+    ]),
+)
+
+xla_cc_test(
+    name = "ir_emitter_triton_test",
+    srcs = ["ir_emitter_triton_test.cc"],
+    tags = [
+        "gpu",
+        "no_oss",
+        "requires-gpu-sm70",
+    ],
+    deps = [
+        ":ir_emitter_triton",
+        "//xla:comparison_util",
+        "//xla:xla_data_proto_cc",
+        "//xla/hlo/ir:hlo",
+        "//xla/service:gpu_plugin",
+        "//xla/service/gpu/tests:gpu_codegen_test",
+        "//xla/tests:hlo_test_base",
+        "//xla/tests:test_utils",
+        "//xla/tests:xla_internal_test_main",  # fixdeps: keep
+        "@com_google_absl//absl/strings",
+        "@tsl//tsl/platform:test",
+        "@tsl//tsl/platform/default/build_config:cublas_plugin",
+    ],
+)
+
+cc_library(
+    name = "triton_autotuner",
+    srcs = if_cuda_is_configured(["triton_autotuner.cc"]),
+    hdrs = if_cuda_is_configured(["triton_autotuner.h"]),
+    deps = if_cuda_is_configured([
+        ":buffer_comparator",
+        ":gpu_asm_opts_util",
+        ":gpu_device_info",
+        ":ir_emission_utils",
+        ":ir_emitter_triton",
+        ":launch_dimensions",
+        ":stream_executor_util",
+        ":target_util",
+        "@com_google_absl//absl/container:node_hash_map",
+        "//xla/hlo/ir:hlo",
+        "//xla/service:hlo_pass",
+        "//xla/service/gpu/llvm_gpu_backend",
+        "//xla/stream_executor/gpu:asm_compiler_header",
+        "//xla/stream_executor/gpu:redzone_allocator",
+        "@tsl//tsl/platform:statusor",
+        "@tsl//tsl/util/proto:proto_utils",
+    ]),
+)
+
+xla_cc_test(
+    name = "triton_autotuner_test",
+    srcs = ["triton_autotuner_test.cc"],
+    tags = [
+        "gpu",
+        "no_oss",
+        "requires-gpu-sm70",
+    ],
+    deps = [
+        ":gemm_rewriter_triton",
+        ":gpu_executable",
+        ":triton_autotuner",
+        "//xla:xla_proto_cc",
+        "//xla/hlo/ir:hlo",
+        "//xla/service:hlo_pass_pipeline",
+        "//xla/service/gpu/tests:gpu_codegen_test",
+        "//xla/stream_executor/lib",
+        "//xla/tests:hlo_test_base",
+        "@com_google_absl//absl/strings",
+        "@tsl//tsl/platform:test",
+        "@tsl//tsl/platform:test_main",
+    ],
 )
 
 cc_library(
@@ -713,6 +808,7 @@ cc_library(
     compatible_with = get_compatible_with_cloud(),
     deps = [
         ":target_util",
+        "//xla:xla_data_proto_cc",
         "//xla/hlo/ir:hlo",
         "//xla/mlir_hlo",
         "//xla/mlir_hlo:lhlo",
@@ -855,6 +951,18 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@tsl//tsl/platform:errors",
         "@tsl//tsl/protobuf:dnn_proto_cc",
+    ],
+)
+
+cc_library(
+    name = "gemm_rewriter_triton",
+    srcs = ["gemm_rewriter_triton.cc"],
+    hdrs = ["gemm_rewriter_triton.h"],
+    deps = [
+        ":ir_emission_utils",
+        "//xla/hlo/ir:hlo",
+        "//xla/service:hlo_pass",
+        "//xla/stream_executor:device_description",
     ],
 )
 
@@ -1722,6 +1830,7 @@ cc_library(
         ":fusion_merger",
         ":gemm_broadcast_folding_rewriter",
         ":gemm_rewriter",
+        ":gemm_rewriter_triton",
         ":gpu_constants",
         ":gpu_conv_algorithm_picker",
         ":gpu_conv_rewriter",
@@ -1754,6 +1863,16 @@ cc_library(
         ":softmax_fusion",
         ":tree_reduction_rewriter",
         ":variadic_op_splitter",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
+        "@llvm-project//llvm:AsmParser",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:TransformUtils",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
         "//xla:autotune_results_proto_cc",
         "//xla:status_macros",
         "//xla:statusor",
@@ -1851,16 +1970,6 @@ cc_library(
         "//xla/translate/hlo_to_mhlo:hlo_utils",
         "//xla/translate/mhlo_to_hlo:location_exporter",
         "//xla/translate/mhlo_to_lhlo_with_xla",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:variant",
-        "@llvm-project//llvm:AsmParser",
-        "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:Support",
-        "@llvm-project//llvm:TransformUtils",
-        "@llvm-project//mlir:FuncDialect",
-        "@llvm-project//mlir:IR",
-        "@llvm-project//mlir:Pass",
-        "@llvm-project//mlir:Support",
         "@tsl//tsl/platform:blocking_counter",
         "@tsl//tsl/platform:casts",
         "@tsl//tsl/platform:env",
@@ -1869,7 +1978,9 @@ cc_library(
         "@tsl//tsl/platform:status",
         "@tsl//tsl/platform:statusor",
         "@tsl//tsl/profiler/lib:traceme",
-    ],
+    ] + if_cuda_is_configured([
+        ":triton_autotuner",
+    ]),
 )
 
 xla_cc_test(

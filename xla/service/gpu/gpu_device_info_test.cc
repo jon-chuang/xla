@@ -13,17 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#if GOOGLE_CUDA
-
 #include <memory>
 #include <string>
 
-#include <gtest/gtest.h>
-#include "third_party/gpus/cuda/include/cuda_runtime_api.h"
 #include "xla/service/gpu/gpu_device_info_for_tests.h"
-#include "xla/stream_executor/cuda/cuda_driver.h"
 #include "xla/stream_executor/cuda/cuda_gpu_executor.h"
 #include "xla/stream_executor/device_description.h"
+#include "xla/test_helpers.h"
 
 namespace stream_executor {
 namespace gpu {
@@ -39,6 +35,8 @@ TEST(DeviceInfoTest, DeviceInfo) {
     EXPECT_EQ(t.threads_per_block_limit, d->threads_per_block_limit());
     EXPECT_EQ(t.threads_per_warp, d->threads_per_warp());
     EXPECT_EQ(t.shared_memory_per_block, d->shared_memory_per_block());
+    EXPECT_EQ(t.shared_memory_per_block_optin,
+              d->shared_memory_per_block_optin());
     EXPECT_EQ(t.shared_memory_per_core, d->shared_memory_per_core());
     EXPECT_EQ(t.threads_per_core_limit, d->threads_per_core_limit());
     EXPECT_EQ(t.core_count, d->core_count());
@@ -53,9 +51,13 @@ TEST(DeviceInfoTest, DeviceInfo) {
   } else if (name == "Quadro P1000") {
     EXPECT_EQ(d->fpus_per_core(), 128);
     EXPECT_EQ(d->l2_cache_size(), 1024 * 1024);
+    EXPECT_EQ(d->shared_memory_per_block(), 48 * 1024);
+    EXPECT_EQ(d->shared_memory_per_block_optin(), 48 * 1024);
   } else if (name == "Tesla P100-SXM2-16GB") {
     EXPECT_EQ(d->fpus_per_core(), 64);
     EXPECT_EQ(d->l2_cache_size(), 4 * 1024 * 1024);
+    EXPECT_EQ(d->shared_memory_per_block(), 48 * 1024);
+    EXPECT_EQ(d->shared_memory_per_block_optin(), 48 * 1024);
   } else {
     VLOG(1) << "Not tested for " << name;
   }
@@ -64,5 +66,3 @@ TEST(DeviceInfoTest, DeviceInfo) {
 }  // namespace
 }  // namespace gpu
 }  // namespace stream_executor
-
-#endif  // GOOGLE_CUDA
