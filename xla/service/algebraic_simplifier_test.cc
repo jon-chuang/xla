@@ -9217,5 +9217,227 @@ TEST_F(AlgebraicSimplifierTest, MultiplyOfConvertedPred) {
   EXPECT_TRUE(verifier().Run(m.get()).status().ok());
 }
 
+class AlgebraicSimplifierUpcastDowncastTest : public AlgebraicSimplifierTest {
+ public:
+  using AlgebraicSimplifierTest::AlgebraicSimplifierTest;
+
+ protected:
+  std::vector<std::string> types_ = {"f16", "f32", "f64", "s8",  "s16", "s32",
+                                     "s64", "u8",  "u16", "u32", "u64"};
+  std::map<std::string, std::vector<std::string>> larger_types_ = {
+      {"f16", {"f32", "f64"}},
+      {"f32", {"f64"}},
+      {"f64", {}},
+      {"s8", {"s16", "s32", "s64"}},
+      {"s16", {"s32", "s64"}},
+      {"s32", {"s64"}},
+      {"s64", {}},
+      {"u8", {"u16", "u32", "u64"}},
+      {"u16", {"u32", "u64"}},
+      {"u32", {"u64"}},
+      {"u64", {}}};
+  std::map<std::string, std::vector<std::string>> smaller_types_ = {
+      {"f16", {}},
+      {"f32", {"f16"}},
+      {"f64", {"f32", "f16"}},
+      {"s16", {"s8"}},
+      {"s8", {}},
+      {"s32", {"s16", "s8"}},
+      {"s64", {"s32", "s16", "s8"}},
+      {"u16", {"u8"}},
+      {"u8", {}},
+      {"u32", {"u16", "u8"}},
+      {"u64", {"u32", "u16", "u8"}}};
+  std::map<std::string, PrimitiveType> primitive_types_ = {
+      {"f16", F16}, {"f32", F32}, {"f64", F64}, {"s8", S8},
+      {"s16", S16}, {"s32", S32}, {"s64", S64}, {"u8", U8},
+      {"u16", U16}, {"u32", U32}, {"u64", U64}};
+  std::string getModuleStr(const std::string& src_type,
+                           const std::string& dest_type,
+                           const std::string& op) const {
+    const std::string module_str = R"(
+      HloModule m
+      test {
+        p1 = )" + src_type + R"([] parameter(0)
+        p2 = )" + src_type + R"([] parameter(1)
+        c1 = )" + dest_type + R"([] convert(p1)
+        c2 = )" + dest_type + R"([] convert(p2)
+        res = )" + dest_type + R"([] )" +
+                                   op + R"((c1, c2)
+        ROOT cres = )" + src_type + R"([] convert(res)
+      }
+    )";
+    return module_str;
+  }
+};
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreRemovedForAdd) {
+  for (const auto& type : types_) {
+    const auto larger_types_it = larger_types_.find(type);
+    if (larger_types_it == larger_types_.end()) {
+      // No larger type list
+      LOG(FATAL) << "No larger type list";
+    }
+    for (const auto& larger_type : larger_types_it->second) {
+      const auto primitive_type_it = primitive_types_.find(type);
+      if (primitive_type_it == primitive_types_.end()) {
+        LOG(FATAL) << "No primitive type!";
+      }
+      const auto primitive_type = primitive_type_it->second;
+      const std::string kModuleStr = getModuleStr(type, larger_type, "add");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_TRUE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+      EXPECT_THAT(
+          m->entry_computation()->root_instruction(),
+          GmockMatch(m::Add(m::Parameter(0).WithElementType(primitive_type),
+                            m::Parameter(1).WithElementType(primitive_type))));
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreRemovedForSubtract) {
+  for (const auto& type : types_) {
+    const auto larger_types_it = larger_types_.find(type);
+    if (larger_types_it == larger_types_.end()) {
+      // No larger type list
+      LOG(FATAL) << "No larger type list";
+    }
+    for (const auto& larger_type : larger_types_it->second) {
+      const auto primitive_type_it = primitive_types_.find(type);
+      if (primitive_type_it == primitive_types_.end()) {
+        LOG(FATAL) << "No primitive type!";
+      }
+      const auto primitive_type = primitive_type_it->second;
+      const std::string kModuleStr =
+          getModuleStr(type, larger_type, "subtract");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_TRUE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+      EXPECT_THAT(m->entry_computation()->root_instruction(),
+                  GmockMatch(m::Subtract(
+                      m::Parameter(0).WithElementType(primitive_type),
+                      m::Parameter(1).WithElementType(primitive_type))));
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreRemovedForDivide) {
+  for (const auto& type : types_) {
+    const auto larger_types_it = larger_types_.find(type);
+    if (larger_types_it == larger_types_.end()) {
+      // No larger type list
+      LOG(FATAL) << "No larger type list";
+    }
+    for (const auto& larger_type : larger_types_it->second) {
+      const auto primitive_type_it = primitive_types_.find(type);
+      if (primitive_type_it == primitive_types_.end()) {
+        LOG(FATAL) << "No primitive type!";
+      }
+      const auto primitive_type = primitive_type_it->second;
+      const std::string kModuleStr = getModuleStr(type, larger_type, "divide");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_TRUE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+      EXPECT_THAT(m->entry_computation()->root_instruction(),
+                  GmockMatch(m::Divide(
+                      m::Parameter(0).WithElementType(primitive_type),
+                      m::Parameter(1).WithElementType(primitive_type))));
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreRemovedForMultiply) {
+  for (const auto& type : types_) {
+    const auto larger_types_it = larger_types_.find(type);
+    if (larger_types_it == larger_types_.end()) {
+      // No larger type list
+      LOG(FATAL) << "No larger type list";
+    }
+    for (const auto& larger_type : larger_types_it->second) {
+      const auto primitive_type_it = primitive_types_.find(type);
+      if (primitive_type_it == primitive_types_.end()) {
+        LOG(FATAL) << "No primitive type!";
+      }
+      const auto primitive_type = primitive_type_it->second;
+      const std::string kModuleStr =
+          getModuleStr(type, larger_type, "multiply");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_TRUE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+      EXPECT_THAT(m->entry_computation()->root_instruction(),
+                  GmockMatch(m::Multiply(
+                      m::Parameter(0).WithElementType(primitive_type),
+                      m::Parameter(1).WithElementType(primitive_type))));
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreNotRemovedForAdd) {
+  for (const auto& type : types_) {
+    const auto smaller_types_it = smaller_types_.find(type);
+    if (smaller_types_it == smaller_types_.end()) {
+      // No smaller type list
+      LOG(FATAL) << "No smaller type list";
+    }
+    for (const auto& smaller_type : smaller_types_it->second) {
+      const std::string kModuleStr = getModuleStr(type, smaller_type, "add");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_FALSE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreNotRemovedForSubtract) {
+  for (const auto& type : types_) {
+    const auto smaller_types_it = smaller_types_.find(type);
+    if (smaller_types_it == smaller_types_.end()) {
+      // No smaller type list
+      LOG(FATAL) << "No smaller type list";
+    }
+    for (const auto& smaller_type : smaller_types_it->second) {
+      const std::string kModuleStr =
+          getModuleStr(type, smaller_type, "subtract");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_FALSE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreNotRemovedForDivide) {
+  for (const auto& type : types_) {
+    const auto smaller_types_it = smaller_types_.find(type);
+    if (smaller_types_it == smaller_types_.end()) {
+      // No smaller type list
+      LOG(FATAL) << "No smaller type list";
+    }
+    for (const auto& smaller_type : smaller_types_it->second) {
+      const std::string kModuleStr = getModuleStr(type, smaller_type, "divide");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_FALSE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+    }
+  }
+}
+
+TEST_F(AlgebraicSimplifierUpcastDowncastTest,
+       CheckUpcastingAndDowncastingConvertsAreNotRemovedForMultiply) {
+  for (const auto& type : types_) {
+    const auto smaller_types_it = smaller_types_.find(type);
+    if (smaller_types_it == smaller_types_.end()) {
+      // No smaller type list
+      LOG(FATAL) << "No smaller type list";
+    }
+    for (const auto& smaller_type : smaller_types_it->second) {
+      const std::string kModuleStr =
+          getModuleStr(type, smaller_type, "multiply");
+      TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(kModuleStr));
+      ASSERT_FALSE(AlgebraicSimplifier(default_options_).Run(m.get()).value());
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xla

@@ -1687,6 +1687,58 @@ AlgebraicSimplifierVisitor::TrySimplifyTautologicalBitcastConvert(
   return true;
 }
 
+Status
+AlgebraicSimplifierVisitor::TryRemoveUpcastAndDowncastSurroundingBinaryOp(
+    HloInstruction* convert_instruction) {
+  HloInstruction* arg_1 = nullptr;
+  HloInstruction* arg_2 = nullptr;
+  HloInstruction* bin_op_instr = nullptr;
+  HloInstruction* final_convert_instr = nullptr;
+
+  auto bin_op_pattern = m::Convert(
+      &final_convert_instr,
+      m::AnyOf<HloInstruction>(
+          m::Add(&bin_op_instr, m::Convert(m::Op(&arg_1)).WithOneUser(),
+                 m::Convert(m::Op(&arg_2)).WithOneUser()),
+          m::Subtract(&bin_op_instr, m::Convert(m::Op(&arg_1)).WithOneUser(),
+                      m::Convert(m::Op(&arg_2)).WithOneUser()),
+          m::Multiply(&bin_op_instr, m::Convert(m::Op(&arg_1)).WithOneUser(),
+                      m::Convert(m::Op(&arg_2)).WithOneUser()),
+          m::Divide(&bin_op_instr, m::Convert(m::Op(&arg_1)).WithOneUser(),
+                    m::Convert(m::Op(&arg_2)).WithOneUser()))
+          .WithOneUser());
+
+  if (!Match(convert_instruction, bin_op_pattern)) {
+    return OkStatus();
+  }
+  const PrimitiveType arg_1_type = arg_1->shape().element_type();
+  const PrimitiveType arg_2_type = arg_2->shape().element_type();
+  const PrimitiveType final_type = final_convert_instr->shape().element_type();
+
+  if (arg_1_type != final_type || arg_2_type != final_type) {
+    // Only match when the series of instructions ends with the same types that
+    // it started with.
+    return OkStatus();
+  }
+
+  // Ensure that bin_op_type can represent everything that final_type can. This
+  // is ensuring that the pattern is matching the case when we upcast, perform
+  // the op, and then downcast.
+  const PrimitiveType bin_op_type = bin_op_instr->shape().element_type();
+  if (!primitive_util::CastPreservesValues(final_type, bin_op_type)) {
+    return OkStatus();
+  }
+
+  // Change the type of the binary op to the smaller type.
+  HloComputation* computation = convert_instruction->parent();
+  HloInstruction* new_bin_op =
+      computation->AddInstruction(bin_op_instr->CloneWithNewOperands(
+          ShapeUtil::ChangeElementType(bin_op_instr->shape(), final_type),
+          {arg_1, arg_2}));
+  TF_RETURN_IF_ERROR(ReplaceInstruction(final_convert_instr, new_bin_op));
+  return OkStatus();
+}
+
 static HloInstruction* BuildTupleConstant(HloComputation* computation,
                                           const LiteralSlice& literal,
                                           AlgebraicSimplifier* simplifier) {
@@ -3787,7 +3839,8 @@ Status AlgebraicSimplifierVisitor::HandleConvert(HloInstruction* convert) {
     return ReplaceInstruction(convert,
                               convert->mutable_operand(0)->mutable_operand(0));
   }
-  return OkStatus();
+
+  return TryRemoveUpcastAndDowncastSurroundingBinaryOp(convert);
 }
 
 // Complex(Real(c), Imag(c)) -> c
