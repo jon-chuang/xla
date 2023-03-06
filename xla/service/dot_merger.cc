@@ -153,6 +153,13 @@ StatusOr<HloInstruction*> TryMergeSameOperand(HloInstruction* a,
   HloInstruction* shared_op = a->mutable_operand(lhs_same ? 0 : 1);
   HloInstruction* diff_op_a = a->mutable_operand(lhs_same ? 1 : 0);
   HloInstruction* diff_op_b = b->mutable_operand(lhs_same ? 1 : 0);
+  if (diff_op_a->shape().layout() != diff_op_b->shape().layout()) {
+    VLOG(3) << "Can't merge dots because the different operands have a "
+               "different layout:\n"
+            << "\t" << diff_op_a->ToString() << "\n"
+            << "\t" << diff_op_b->ToString();
+    return nullptr;
+  }
 
   // Dimension along which we're going to concatenate diff_op_a and diff_op_b.
   // This is the outer (i.e. non-contracing) dim.  Because the dot is canonical,

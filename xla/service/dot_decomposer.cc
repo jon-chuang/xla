@@ -32,15 +32,7 @@ limitations under the License.
 
 namespace xla {
 
-namespace {
-
-// Convert a dot into a canonical form;
-// * Non-contracting dimensions are reshaped together,
-// * Contracting dimensions are reshaped together,
-// * Batch dimensions are the most major dimensions.
-// This requires transposing and reshaping of the lhs and rhs, and reshaping the
-// output batch to the original shape.
-Status CanonicalizeDot(HloInstruction* original_dot) {
+Status DotDecomposer::CanonicalizeDot(HloInstruction* original_dot) {
   auto computation = original_dot->parent();
   const auto& original_dnums = original_dot->dot_dimension_numbers();
   const int64_t num_batch_dims = original_dnums.lhs_batch_dimensions_size();
@@ -182,8 +174,6 @@ Status CanonicalizeDot(HloInstruction* original_dot) {
   return computation->ReplaceWithNewInstruction(original_dot,
                                                 std::move(replacement));
 }
-
-}  // namespace
 
 StatusOr<bool> DotDecomposer::Run(
     HloModule* module,

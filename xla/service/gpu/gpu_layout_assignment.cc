@@ -231,13 +231,19 @@ void SetFortranLayout(Shape* shape) {
 
 bool DotCanSupportShapeWithLayout(const HloInstruction* dot,
                                   const Shape& shape) {
+  return false;
   const DotDimensionNumbers& dot_dims = dot->dot_dimension_numbers();
+
   // If we are able to construct a `MatrixLayout` then the dot can support
   // this layout.
   return MatrixLayout::For(shape, dot_dims.lhs_batch_dimensions().size(),
-                           dot_dims.lhs_contracting_dimensions().size(),
+                           dot->operand(0)->shape().rank() -
+                               dot_dims.lhs_contracting_dimensions().size() -
+                               dot_dims.lhs_batch_dimensions().size(),
                            dot_dims.rhs_batch_dimensions().size(),
-                           dot_dims.rhs_contracting_dimensions().size())
+                           dot->operand(1)->shape().rank() -
+                               dot_dims.rhs_contracting_dimensions().size() -
+                               dot_dims.rhs_batch_dimensions().size())
       .ok();
 }
 
@@ -260,7 +266,7 @@ Status GpuLayoutAssignment::AddBackendConstraints(
     CHECK(!IsCublasGemm(*instruction))
         << "Gemm rewriting should run after layout assignment";
 
-    if (IsMatrixMultiplication(*instruction)) {
+    if (instruction->opcode() == HloOpcode::kDot) {
       const Shape& output_shape = instruction->shape();
       const Shape& lhs_shape = instruction->operand(0)->shape();
       const Shape& rhs_shape = instruction->operand(1)->shape();
@@ -302,7 +308,7 @@ Status GpuLayoutAssignment::AddBackendConstraints(
         TF_RETURN_IF_ERROR(SetOperandBatchRowsColsLayout(
             instruction, 1, rhs_batch_dims, rhs_col_dims, rhs_row_dims));
         TF_RETURN_IF_ERROR(SetDotLayout(instruction, constraints));
-      } else if (!lhs_batch_dims.empty()) {
+      } else {
         TF_RETURN_IF_ERROR(SetDotOperandLayout(instruction, 0, lhs_batch_dims,
                                                lhs_row_dims, lhs_col_dims));
         TF_RETURN_IF_ERROR(SetDotOperandLayout(instruction, 1, rhs_batch_dims,
