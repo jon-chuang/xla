@@ -68,7 +68,6 @@ limitations under the License.
 #include "xla/service/llvm_ir/llvm_util.h"
 #include "xla/xla_data.pb.h"
 #include "tsl/platform/path.h"
-#include "triton/Conversion/TritonGPUToLLVM/ArithToIndexPass.h"
 #include "triton/Conversion/TritonGPUToLLVM/TritonGPUToLLVMPass.h"
 #include "triton/Conversion/TritonToTritonGPU/TritonToTritonGPUPass.h"
 #include "triton/Dialect/Triton/IR/Dialect.h"
@@ -213,6 +212,7 @@ void CreateTritonPipeline(mlir::OpPassManager& pm,
   // Based on optimize_ttgir() in
   // @triton//:python/triton/compiler.py
   pm.addPass(mlir::createTritonGPUCoalescePass());
+  pm.addPass(mlir::createTritonGPURemoveLayoutConversionsPass());
   pm.addPass(mlir::createTritonGPUAccelerateMatmulPass(ccAsInt));
   pm.addPass(mlir::createTritonGPURemoveLayoutConversionsPass());
   pm.addPass(mlir::createTritonGPUOptimizeDotOperandsPass());
@@ -221,16 +221,12 @@ void CreateTritonPipeline(mlir::OpPassManager& pm,
   pm.addPass(mlir::createTritonGPUOptimizeDotOperandsPass());
   pm.addPass(mlir::createTritonGPURemoveLayoutConversionsPass());
   pm.addPass(mlir::createTritonGPUDecomposeConversionsPass());
-  if (cc.major == se::CudaComputeCapability::VOLTA) {
-    pm.addPass(mlir::createTritonGPUUpdateMmaForVoltaPass());
-  }
   pm.addPass(mlir::createTritonGPUReorderInstructionsPass());
   pm.addPass(mlir::createCSEPass());
   pm.addPass(mlir::createSymbolDCEPass());
   // Based on translateTritonGPUToLLVMIR() in
   // @triton//:lib/Target/LLVMIR/LLVMIRTranslation.cpp
   pm.addPass(mlir::createConvertSCFToCFPass());
-  pm.addPass(mt::createTritonConvertArithToIndexPass());
   pm.addPass(mlir::createConvertIndexToLLVMPass());
   pm.addPass(mt::createConvertTritonGPUToLLVMPass(ccAsInt));
   pm.addPass(mlir::createArithToLLVMConversionPass());
