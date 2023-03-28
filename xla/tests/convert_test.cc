@@ -28,6 +28,7 @@ limitations under the License.
 #include "xla/tests/client_library_test_base.h"
 #include "xla/tests/literal_test_util.h"
 #include "xla/tests/test_macros.h"
+#include "xla/types.h"
 #include "xla/xla_data.pb.h"
 #include "tsl/platform/float8.h"
 #include "tsl/platform/test.h"
@@ -142,6 +143,24 @@ TEST_F(ConvertTest, ConvertR1PREDToR1U32) {
 
   std::vector<uint32_t> expected = {1, 0, 1};
   ComputeAndCompareR1<uint32_t>(&builder, expected, {});
+}
+
+TEST_F(ConvertTest, ConvertR1S4ToR1S8) {
+  XlaBuilder builder(TestName());
+  auto a = ConstantR1<s4>(&builder, {s4(1), s4(2), s4(-8)});
+  ConvertElementType(a, S8);
+
+  std::vector<int8_t> expected = {1, 2, -8};
+  ComputeAndCompareR1<int8_t>(&builder, expected, {});
+}
+
+TEST_F(ConvertTest, ConvertR1U4ToR1U8) {
+  XlaBuilder builder(TestName());
+  auto a = ConstantR1<u4>(&builder, {u4(1), u4(2), u4(15)});
+  ConvertElementType(a, U8);
+
+  std::vector<uint8_t> expected = {1, 2, 15};
+  ComputeAndCompareR1<uint8_t>(&builder, expected, {});
 }
 
 TEST_F(ConvertTest, ConvertR1PREDToR1F32) {
