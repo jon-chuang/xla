@@ -1064,7 +1064,7 @@ cuda_cc_test(
 cc_library(
     name = "cuda",
     deps = [
-        "//tsl/platform/default/build_config:cuda",
+        "@local_config_cuda//cuda:cudart_static",
     ],
 )
 
