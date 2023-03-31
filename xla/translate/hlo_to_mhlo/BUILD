@@ -121,6 +121,7 @@ cc_library(
         ":hlo_utils",
         "//xla:comparison_util",
         "//xla:shape_util",
+        "//xla:sharding_op_util",
         "//xla:types",
         "//xla:util",
         "//xla/client:xla_builder",

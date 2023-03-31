@@ -16,12 +16,16 @@ limitations under the License.
 #ifndef XLA_SHARDING_OP_UTIL_H_
 #define XLA_SHARDING_OP_UTIL_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xla/shape.h"
 #include "xla/status.h"
+#include "xla/statusor.h"
+#include "xla/xla_data.pb.h"
 
 namespace xla {
 namespace sharding_op_util {
@@ -33,6 +37,10 @@ std::string EncodeAttributes(absl::Span<const int64_t> unspecified_dims);
 // Parses the opaque string of Sharding and auto/manual conversion custom ops.
 Status ParseAttributes(absl::string_view opaque,
                        std::vector<int64_t>* unspecified_dims);
+
+// Normalize the sharding with the given shape when it's a tuple.
+StatusOr<std::optional<OpSharding>> NormalizeTupleSharding(
+    std::optional<OpSharding> sharding, const Shape& shape);
 
 }  // namespace sharding_op_util
 }  // namespace xla

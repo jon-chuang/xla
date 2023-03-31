@@ -22,6 +22,7 @@ limitations under the License.
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xla/hlo/ir/hlo_sharding.h"
 #include "xla/service/hlo_lexer.h"
 #include "xla/status_macros.h"
 
@@ -60,6 +61,21 @@ Status ParseAttributes(absl::string_view opaque,
     }
   }
   return OkStatus();
+}
+
+StatusOr<std::optional<OpSharding>> NormalizeTupleSharding(
+    std::optional<OpSharding> sharding, const Shape& shape) {
+  if (!sharding) {
+    std::optional<OpSharding> opt_sharding = {};
+    return opt_sharding;
+  }
+
+  TF_ASSIGN_OR_RETURN(HloSharding hlo_sharding,
+                      HloSharding::FromProto(*sharding));
+  hlo_sharding = hlo_sharding.NormalizeTupleSharding(shape);
+  TF_RETURN_IF_ERROR(hlo_sharding.Validate(shape));
+  std::optional<OpSharding> opt_sharding = hlo_sharding.ToProto();
+  return opt_sharding;
 }
 
 }  // namespace sharding_op_util

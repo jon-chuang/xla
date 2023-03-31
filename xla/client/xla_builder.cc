@@ -4242,15 +4242,11 @@ StatusOr<XlaOp> XlaBuilder::AddInstruction(HloInstructionProto&& instr,
   } else {
     *instr.mutable_metadata() = metadata_;
   }
-  if (sharding_) {
-    // Normalize tuple sharding and fail the call if the sharding is not valid.
-    Shape shape(instr.shape());
-    TF_ASSIGN_OR_RETURN(HloSharding sharding,
-                        HloSharding::FromProto(*sharding_));
-    sharding = sharding.NormalizeTupleSharding(shape);
-    TF_RETURN_IF_ERROR(sharding.Validate(shape));
-    *instr.mutable_sharding() = sharding.ToProto();
-  }
+  Shape shape(instr.shape());
+  TF_ASSIGN_OR_RETURN(
+      std::optional<OpSharding> normalized_sharding,
+      sharding_op_util::NormalizeTupleSharding(sharding_, shape));
+  if (normalized_sharding) *instr.mutable_sharding() = *normalized_sharding;
   *instr.mutable_frontend_attributes() = frontend_attributes_;
 
   handle_to_index_[handle] = instructions_.size();

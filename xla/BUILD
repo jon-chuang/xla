@@ -440,8 +440,12 @@ cc_library(
     hdrs = ["sharding_op_util.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":shape_util",
         ":status",
         ":status_macros",
+        ":statusor",
+        ":xla_data_proto_cc",
+        "//xla/hlo/ir:hlo",
         "//xla/service:hlo_lexer",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
