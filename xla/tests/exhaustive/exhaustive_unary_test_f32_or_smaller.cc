@@ -519,7 +519,7 @@ UNARY_TEST_FLOAT_32_BITS_OR_LESS(Erf, {
       Erf, std::erf, +[](NativeT) {
         NativeT tol =
             std::max(std::numeric_limits<NativeT>::epsilon(),
-                     NativeT(5 * std::numeric_limits<float>::epsilon()));
+                     NativeT(4 * std::numeric_limits<float>::epsilon()));
         return ErrorSpec(tol, tol);
       });
 })
