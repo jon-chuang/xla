@@ -229,6 +229,7 @@ class HloModuleConfig {
   std::string device_type() const { return device_type_; }
 
   const DebugOptions& debug_options() const { return debug_options_; }
+  DebugOptions* mutable_debug_options() { return &debug_options_; }
 
   void set_debug_options(const DebugOptions& debug_options) {
     debug_options_ = debug_options;

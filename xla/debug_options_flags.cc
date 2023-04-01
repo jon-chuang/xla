@@ -87,6 +87,7 @@ DebugOptions DefaultDebugOptionsIgnoringFlags() {
   opts.set_xla_force_host_platform_device_count(1);
   opts.set_xla_gpu_all_reduce_combine_threshold_bytes(30 * 1024 * 1024);
   opts.set_xla_gpu_enable_async_all_reduce(true);
+  opts.set_xla_gpu_enable_async_collectives_to_sync(true);
   opts.set_xla_cpu_enable_xprof_traceme(false);
   opts.set_xla_gpu_unsafe_fallback_to_driver_on_ptxas_not_found(false);
   opts.set_xla_multiheap_size_constraint_per_heap(-1);
@@ -734,6 +735,28 @@ void MakeDebugOptionsFlags(std::vector<tsl::Flag>* flag_list,
           &DebugOptions::set_xla_gpu_enable_async_collective_permute),
       debug_options->xla_gpu_enable_async_collective_permute(),
       "Converts synchronous collective-permute ops into asynchronous."));
+  flag_list->push_back(tsl::Flag(
+      "xla_gpu_enable_async_all_gather",
+      bool_setter_for(&DebugOptions::set_xla_gpu_enable_async_all_gather),
+      debug_options->xla_gpu_enable_async_all_gather(),
+      "Converts synchronous all-gather ops into asynchronous."));
+  flag_list->push_back(tsl::Flag(
+      "xla_gpu_enable_async_reduce_scatter",
+      bool_setter_for(&DebugOptions::set_xla_gpu_enable_async_reduce_scatter),
+      debug_options->xla_gpu_enable_async_reduce_scatter(),
+      "Converts synchronous reduce-scatter ops into asynchronous."));
+  flag_list->push_back(tsl::Flag(
+      "xla_gpu_enable_async_all_to_all",
+      bool_setter_for(&DebugOptions::set_xla_gpu_enable_async_all_to_all),
+      debug_options->xla_gpu_enable_async_all_to_all(),
+      "Converts synchronous all-to-all ops into asynchronous."));
+  flag_list->push_back(tsl::Flag(
+      "xla_gpu_enable_async_collectives_to_sync",
+      bool_setter_for(
+          &DebugOptions::set_xla_gpu_enable_async_collectives_to_sync),
+      debug_options->xla_gpu_enable_async_collectives_to_sync(),
+      "Converts async collectives with no overlapping compute to "
+      "synchronous."));
   flag_list->push_back(tsl::Flag(
       "xla_gpu_all_reduce_combine_threshold_bytes",
       int64_setter_for(
